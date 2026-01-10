@@ -1,11 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type ChatResponse } from "@shared/routes";
+import { api, type ChatResponse, buildUrl } from "@shared/routes";
+import { useSession } from "../App";
 
 export function useChatHistory() {
+  const sessionId = useSession();
+  
   return useQuery({
-    queryKey: [api.chat.history.path],
+    queryKey: [api.chat.history.path, sessionId],
     queryFn: async () => {
-      const res = await fetch(api.chat.history.path, { credentials: "include" });
+      const url = buildUrl(api.chat.history.path, { sessionId });
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch chat history");
       return api.chat.history.responses[200].parse(await res.json());
     },
@@ -14,11 +18,11 @@ export function useChatHistory() {
 
 export function useSendMessage() {
   const queryClient = useQueryClient();
+  const sessionId = useSession();
   
   return useMutation({
     mutationFn: async (message: string) => {
-      // Optimistic updates are handled in the UI for speed, but we validate here
-      const validated = api.chat.send.input.parse({ message });
+      const validated = api.chat.send.input.parse({ message, sessionId });
       
       const res = await fetch(api.chat.send.path, {
         method: api.chat.send.method,
@@ -38,8 +42,7 @@ export function useSendMessage() {
       return api.chat.send.responses[200].parse(await res.json());
     },
     onSuccess: () => {
-      // Invalidate history to ensure sync
-      queryClient.invalidateQueries({ queryKey: [api.chat.history.path] });
+      queryClient.invalidateQueries({ queryKey: [api.chat.history.path, sessionId] });
     },
   });
 }
