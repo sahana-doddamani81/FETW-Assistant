@@ -48,32 +48,20 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   app.get(api.chat.history.path, async (req, res) => {
-    const history = await storage.getMessages();
+    const { sessionId } = req.params;
+    const history = await storage.getMessages(sessionId);
     res.json(history);
   });
 
   app.post(api.chat.send.path, async (req, res) => {
     try {
-      const { message } = api.chat.send.input.parse(req.body);
+      const { message, sessionId } = api.chat.send.input.parse(req.body);
 
       // Save user message
-      await storage.createMessage({ role: "user", content: message });
+      await storage.createMessage({ role: "user", content: message, sessionId });
 
-      // Get response from OpenAI
-      // Construct conversation history for context (optional, but good for chat)
-      // For this simple version, we'll just send the system prompt + user message
-      // or the last few messages.
-      const history = await storage.getMessages();
-      const messages = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...history.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-        { role: "user", content: message } // Redundant if history includes it, but we just added it.
-        // Actually storage.createMessage is async, so history *might* include it if we await.
-        // Yes, we awaited. So let's filter to avoid duplicates if needed, or just rely on history.
-      ];
-
-      // To be safe and avoid sending too much context in a long chat, let's limit context
-      // But for now, simple is fine.
+      // Get context for this specific session
+      const history = await storage.getMessages(sessionId);
       
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -86,7 +74,7 @@ export async function registerRoutes(
       const aiContent = completion.choices[0].message.content || "I apologize, I couldn't generate a response.";
 
       // Save assistant message
-      const aiMessage = await storage.createMessage({ role: "assistant", content: aiContent });
+      await storage.createMessage({ role: "assistant", content: aiContent, sessionId });
 
       res.json({ message: aiContent, role: "assistant" });
     } catch (err) {

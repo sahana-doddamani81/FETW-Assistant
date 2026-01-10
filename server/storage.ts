@@ -1,20 +1,28 @@
-import { db } from "./db";
 import { messages, type Message, type InsertMessage } from "@shared/schema";
 
 export interface IStorage {
-  getMessages(): Promise<Message[]>;
+  getMessages(sessionId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
 }
 
-export class DatabaseStorage implements IStorage {
-  async getMessages(): Promise<Message[]> {
-    return await db.select().from(messages).orderBy(messages.createdAt);
+export class MemStorage implements IStorage {
+  private messages: Message[] = [];
+  private currentId = 1;
+
+  async getMessages(sessionId: string): Promise<Message[]> {
+    return this.messages.filter(m => m.sessionId === sessionId);
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const [message] = await db.insert(messages).values(insertMessage).returning();
+    const message: Message = {
+      ...insertMessage,
+      id: this.currentId++,
+      createdAt: new Date(),
+    };
+    this.messages.push(message);
     return message;
   }
 }
 
-export const storage = new DatabaseStorage();
+// Using MemStorage for ephemeral sessions as requested
+export const storage = new MemStorage();

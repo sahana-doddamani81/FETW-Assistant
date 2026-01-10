@@ -21,6 +21,7 @@ export const api = {
       path: '/api/chat',
       input: z.object({
         message: z.string().min(1),
+        sessionId: z.string(), // Client sends sessionId
       }),
       responses: {
         200: z.object({
@@ -30,9 +31,10 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    // History is now session-specific
     history: {
       method: 'GET' as const,
-      path: '/api/chat/history',
+      path: '/api/chat/history/:sessionId',
       responses: {
         200: z.array(z.custom<typeof messages.$inferSelect>()),
       },
