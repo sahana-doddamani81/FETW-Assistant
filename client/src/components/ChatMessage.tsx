@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -47,13 +49,24 @@ export function ChatMessage({ role, content, createdAt }: ChatMessageProps) {
         
         <div className={cn(
           "prose prose-blue max-w-none text-base leading-relaxed break-words",
-          !isBot && "bg-primary text-primary-foreground p-4 rounded-2xl rounded-tr-sm shadow-md inline-block text-left"
+          isBot ? "text-left" : "bg-primary text-primary-foreground p-4 rounded-2xl rounded-tr-sm shadow-md inline-block text-left"
         )}>
-           {/* If it's a bot, we might render formatted text. For now, simple text. */}
-           {/* Simple handling of newlines for bot responses */}
-           {content.split('\n').map((line, i) => (
-             <p key={i} className="my-1">{line}</p>
-           ))}
+          {isBot ? (
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
+                li: ({ children }) => <li className="mb-1">{children}</li>,
+                strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
+              }}
+            >
+              {content}
+            </ReactMarkdown>
+          ) : (
+            content
+          )}
         </div>
       </div>
     </motion.div>
