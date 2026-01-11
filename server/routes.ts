@@ -3,49 +3,25 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import OpenAI from "openai";
 
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const COLLEGE_INFO = {
+  name: "Faculty of Engineering and Technology (FETW), Sharnbasva University",
+  hod: "Dr. Nagveeni K",
+  location: "SB Campus Ground, Vidya Nagar, Kalaburgi, Karnataka, India",
+  website: "https://sharnbasvauniversity.edu.in/",
+};
 
-const SYSTEM_PROMPT = `You are an intelligent AI chatbot created for an academic college project.
-Your role is to act as a highly intelligent and helpful College Information and Electronics Assistant. You are now powered by a high-performance engine to provide detailed, accurate, and insightful information.
-
-College Information
-- **Official Website**: [sharnbasvauniversity.edu.in](https://sharnbasvauniversity.edu.in/)
-- **College Name**: Faculty of Engineering and Technology (FETW), Sharnbasva University
-- **Head of the Department (HOD)**: Dr. Nagveeni K
-- **Location**: SB Campus Ground, Vidya Nagar, Kalaburgi, Karnataka, India
-Provide accurate, polite, and comprehensive responses. Use Markdown formatting like bullet points, bold text, and headers to structure your answers beautifully.
-
-Department Specialization
-You are an expert in Electronics and Communication Engineering (ECE).
-Explain concepts with deep clarity, providing examples and real-world applications where relevant. Your goal is to be the most helpful assistant possible for diploma and undergraduate students.
-
-Basic Electronic Components
-Define and explain in detail the working, uses, and types of basic electronic components:
-- **Resistor**: Types, color coding, Ohm's law.
-- **Capacitor**: Types, capacitance, charging/discharging.
-- **Inductor**: Electromagnetism, inductance.
-- **Diode**: P-N junction, rectification.
-- **Transistor**: BJT, FET, switching and amplification.
-- **Integrated Circuit (IC)**: Logic gates, operational amplifiers, microcontrollers.
-
-Electronics and Communication Topics
-Cover advanced and basic topics:
-- **What is Electronics**: The study of electron flow and control.
-- **What is Electronics and Communication Engineering**: Designing systems for signal processing and transmission.
-- **Analog Communication**: AM, FM, PM.
-- **Digital Communication**: PCM, ASK, FSK, PSK.
-- **Basic Communication System**: Detailed roles of Transmitter, Channel (Noise/Interference), and Receiver.
-
-Behavior and Response Rules
-- Always maintain a professional, polite, and encouraging tone.
-- If you don't have specific real-time data, provide the most relevant known information and direct the user to the official website for the latest updates.
-- Use your powerful language capabilities to provide thorough and well-explained answers.
-- Avoid complex mathematical derivations unless specifically asked.
-- Your goal is to empower students with knowledge and facilitate their academic journey at FETW efficiently.`;
+const ECE_TOPICS: Record<string, string> = {
+  "electronics": "Electronics is the branch of science and technology which deals with the flow and control of electrons in various media like vacuum, gas, and semiconductors.",
+  "resistor": "A Resistor is a passive electronic component that opposes the flow of electric current. It is measured in Ohms (Ω).",
+  "capacitor": "A Capacitor is a device that stores electrical energy in an electric field. It is measured in Farads (F).",
+  "inductor": "An Inductor is a passive component that stores energy in a magnetic field when electric current flows through it.",
+  "diode": "A Diode is a semiconductor device that allows current to flow in one direction only. It is commonly used for rectification.",
+  "transistor": "A Transistor is a semiconductor device used to amplify or switch electrical signals and power.",
+  "communication": "Communication Engineering involves the designing of systems for signal processing and transmission over long distances.",
+  "analog": "Analog communication uses continuous signals to transmit information, like AM and FM radio.",
+  "digital": "Digital communication uses discrete signals (0s and 1s) to transmit data, which is more reliable than analog.",
+};
 
 export async function registerRoutes(
   httpServer: Server,
@@ -65,23 +41,32 @@ export async function registerRoutes(
       // Save user message
       await storage.createMessage({ role: "user", content: message, sessionId });
 
-      // Get context for this specific session
-      const history = await storage.getMessages(sessionId);
-      
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...history.slice(-10).map(m => ({ role: m.role as "user" | "assistant", content: m.content }))
-        ],
-      });
+      const lowerMsg = message.toLowerCase();
+      let response = "";
 
-      const aiContent = completion.choices[0].message.content || "I apologize, I couldn't generate a response.";
+      // Rule-based logic
+      if (lowerMsg.includes("hello") || lowerMsg.includes("hi")) {
+        response = `Hello! I am your FETW Assistant. How can I help you today? You can ask me about the college or basic electronics topics like resistors, capacitors, etc.`;
+      } else if (lowerMsg.includes("college") || lowerMsg.includes("university")) {
+        response = `You are asking about **${COLLEGE_INFO.name}**. It is located at ${COLLEGE_INFO.location}. You can visit our official website at ${COLLEGE_INFO.website} for more details.`;
+      } else if (lowerMsg.includes("hod")) {
+        response = `The Head of the Department (HOD) for ECE at FETW is **${COLLEGE_INFO.hod}**.`;
+      } else if (lowerMsg.includes("location") || lowerMsg.includes("where")) {
+        response = `Our campus is located at: **${COLLEGE_INFO.location}**.`;
+      } else {
+        // Check for ECE topics
+        const foundTopic = Object.keys(ECE_TOPICS).find(topic => lowerMsg.includes(topic));
+        if (foundTopic) {
+          response = ECE_TOPICS[foundTopic];
+        } else {
+          response = "I'm a simple assistant designed for this project. I can help with information about FETW college, the ECE department, or basic concepts like resistors and capacitors. Please try asking about those!";
+        }
+      }
 
       // Save assistant message
-      await storage.createMessage({ role: "assistant", content: aiContent, sessionId });
+      await storage.createMessage({ role: "assistant", content: response, sessionId });
 
-      res.json({ message: aiContent, role: "assistant" });
+      res.json({ message: response, role: "assistant" });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({
@@ -90,7 +75,7 @@ export async function registerRoutes(
         });
         return;
       }
-      console.error("OpenAI Error:", err);
+      console.error("Chat Error:", err);
       res.status(500).json({ message: "Internal Server Error" });
     }
   });
