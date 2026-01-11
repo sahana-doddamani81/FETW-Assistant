@@ -3,25 +3,44 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import OpenAI from "openai";
 
-const COLLEGE_INFO = {
-  name: "Faculty of Engineering and Technology (FETW), Sharnbasva University",
-  hod: "Dr. Nagveeni K",
-  location: "SB Campus Ground, Vidya Nagar, Kalaburgi, Karnataka, India",
-  website: "https://sharnbasvauniversity.edu.in/",
-};
+const openai = new OpenAI({ 
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
+});
 
-const ECE_TOPICS: Record<string, string> = {
-  "electronics": "Electronics is the branch of science and technology which deals with the flow and control of electrons in various media like vacuum, gas, and semiconductors.",
-  "resistor": "A Resistor is a passive electronic component that opposes the flow of electric current. It is measured in Ohms (Ω).",
-  "capacitor": "A Capacitor is a device that stores electrical energy in an electric field. It is measured in Farads (F).",
-  "inductor": "An Inductor is a passive component that stores energy in a magnetic field when electric current flows through it.",
-  "diode": "A Diode is a semiconductor device that allows current to flow in one direction only. It is commonly used for rectification.",
-  "transistor": "A Transistor is a semiconductor device used to amplify or switch electrical signals and power.",
-  "communication": "Communication Engineering involves the designing of systems for signal processing and transmission over long distances.",
-  "analog": "Analog communication uses continuous signals to transmit information, like AM and FM radio.",
-  "digital": "Digital communication uses discrete signals (0s and 1s) to transmit data, which is more reliable than analog.",
-};
+const SYSTEM_PROMPT = `You are an intelligent AI chatbot created for an academic college project.
+Your role is to act as a College Information and Electronics Assistant for students and visitors.
+
+College Information
+- **College Name**: Faculty of Engineering and Technology (FETW), Sharnbasva University
+- **Head of the Department (HOD)**: Dr. Nagveeni K
+- **Location**: SB Campus Ground, Vidya Nagar, Kalaburgi, Karnataka, India
+Provide accurate and polite responses when users ask about the college, department, HOD, or location. Use Markdown formatting like bullet points and bold text for these details. If you need to refer to real-time information or external websites, you can provide links to the official university website (https://sharnbasvauniversity.edu.in/) or specific department pages if known. You can also simulate a search by providing likely relevant information based on your general knowledge of the university.
+
+Department Specialization
+You specialize in Electronics and Communication Engineering (ECE).
+Explain concepts in a simple, clear, and student-friendly manner suitable for diploma and undergraduate students.
+
+Basic Electronic Components
+Define and explain the working and uses of basic electronic components such as:
+Resistor, Capacitor, Inductor, Diode, Transistor, Integrated Circuit (IC)
+
+Electronics and Communication Topics
+Explain basic topics including:
+What is Electronics
+What is Electronics and Communication Engineering
+Analog Communication
+Digital Communication
+Basic Communication System (Transmitter, Channel, Receiver)
+
+Behavior and Response Rules
+Always respond in a professional, polite, and helpful tone.
+Keep explanations short, simple, and easy to understand.
+Avoid complex mathematical derivations unless asked.
+If a question is outside your knowledge, politely state that the information is not available.
+Your goal is to help students by providing college information and basic electronics & communication knowledge accurately and efficiently.`;
 
 export async function registerRoutes(
   httpServer: Server,
@@ -41,32 +60,23 @@ export async function registerRoutes(
       // Save user message
       await storage.createMessage({ role: "user", content: message, sessionId });
 
-      const lowerMsg = message.toLowerCase();
-      let response = "";
+      // Get context for this specific session
+      const history = await storage.getMessages(sessionId);
+      
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...history.slice(-10).map(m => ({ role: m.role as "user" | "assistant", content: m.content }))
+        ],
+      });
 
-      // Rule-based logic
-      if (lowerMsg.includes("hello") || lowerMsg.includes("hi")) {
-        response = `Hello! I am your FETW Assistant. How can I help you today? You can ask me about the college or basic electronics topics like resistors, capacitors, etc.`;
-      } else if (lowerMsg.includes("college") || lowerMsg.includes("university")) {
-        response = `You are asking about **${COLLEGE_INFO.name}**. It is located at ${COLLEGE_INFO.location}. You can visit our official website at ${COLLEGE_INFO.website} for more details.`;
-      } else if (lowerMsg.includes("hod")) {
-        response = `The Head of the Department (HOD) for ECE at FETW is **${COLLEGE_INFO.hod}**.`;
-      } else if (lowerMsg.includes("location") || lowerMsg.includes("where")) {
-        response = `Our campus is located at: **${COLLEGE_INFO.location}**.`;
-      } else {
-        // Check for ECE topics
-        const foundTopic = Object.keys(ECE_TOPICS).find(topic => lowerMsg.includes(topic));
-        if (foundTopic) {
-          response = ECE_TOPICS[foundTopic];
-        } else {
-          response = "I'm a simple assistant designed for this project. I can help with information about FETW college, the ECE department, or basic concepts like resistors and capacitors. Please try asking about those!";
-        }
-      }
+      const aiContent = completion.choices[0].message.content || "I apologize, I couldn't generate a response.";
 
       // Save assistant message
-      await storage.createMessage({ role: "assistant", content: response, sessionId });
+      await storage.createMessage({ role: "assistant", content: aiContent, sessionId });
 
-      res.json({ message: response, role: "assistant" });
+      res.json({ message: aiContent, role: "assistant" });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({
@@ -75,7 +85,7 @@ export async function registerRoutes(
         });
         return;
       }
-      console.error("Chat Error:", err);
+      console.error("OpenAI Error:", err);
       res.status(500).json({ message: "Internal Server Error" });
     }
   });
