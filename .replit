@@ -40,3 +40,10 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_openai_ai_integrations:2.0.0"]
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://gwveepfrzucmebwwulvz.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3dmVlcGZyenVjbWVid3d1bHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5MjE1MTIsImV4cCI6MjA4NDQ5NzUxMn0.CZ3HPuy-G3_G9Fkix-pFtxXJ3weO23q_WGaIF9bDxRk"
+SUPABASE_DB_URL = "postgresql://postgres:[sahana@doddamani83]@db.gwveepfrzucmebwwulvz.supabase.co:5432/postgres"
