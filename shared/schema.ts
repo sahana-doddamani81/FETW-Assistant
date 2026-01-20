@@ -5,7 +5,7 @@ import { z } from "zod";
 // We'll keep the table definition for reference, but we won't use it for global history
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  sessionId: text("session_id").notNull(), // Added sessionId to distinguish users
+  sessionId: text("session_id"), // Made optional to facilitate legacy data import
   role: text("role").notNull(), 
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
