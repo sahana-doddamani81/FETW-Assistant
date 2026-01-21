@@ -10,10 +10,14 @@ if (!connectionString) {
   );
 }
 
-// Fixed SSL and connection for Supabase
+// Ensure the connection string is correctly parsed and uses the standard postgres port
+// The error ENOTFOUND suggests a DNS issue or malformed hostname.
+// We'll try to use the connection string directly with postgres.js
 const client = postgres(connectionString, { 
   ssl: 'require',
-  prepare: false 
+  prepare: false,
+  // Increase connection timeout
+  connect_timeout: 10
 });
 
 export const db = drizzle(client, { schema });
