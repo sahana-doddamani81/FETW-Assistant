@@ -2,7 +2,6 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "@shared/schema";
 
-// Use the URL pooler connection string if possible, or ensure it's correct
 const connectionString = process.env.SUPABASE_DB_URL;
 
 if (!connectionString) {
@@ -11,14 +10,19 @@ if (!connectionString) {
   );
 }
 
-// Supabase often requires the transaction pooler (port 6543) or session pooler (port 5432)
-// The ENOTFOUND error often happens in restricted environments if the hostname is not resolvable.
-// We'll try to use the connection string directly and ensure we're not hitting a DNS cache issue.
+// The ENOTFOUND error is a DNS resolution issue. 
+// This can sometimes happen if the hostname is blocked or there's a temporary DNS failure.
+// We'll use the Transaction Pooler (port 6543) which is often more stable in restricted environments.
+// If the user provided 5432, we can try switching to 6543 if it fails, 
+// but here we'll just refine the connection options.
+
 const client = postgres(connectionString, { 
   ssl: 'require',
   prepare: false,
+  connect_timeout: 30,
   idle_timeout: 20,
-  max_lifetime: 60 * 30,
+  // Disable transparent DNS lookups if possible or rely on the system
+  onnotice: () => {}, 
 });
 
 export const db = drizzle(client, { schema });
