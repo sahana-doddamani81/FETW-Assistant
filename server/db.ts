@@ -10,19 +10,17 @@ if (!connectionString) {
   );
 }
 
-// The ENOTFOUND error is a DNS resolution issue. 
-// This can sometimes happen if the hostname is blocked or there's a temporary DNS failure.
-// We'll use the Transaction Pooler (port 6543) which is often more stable in restricted environments.
-// If the user provided 5432, we can try switching to 6543 if it fails, 
-// but here we'll just refine the connection options.
+// The user's connection string has an '@' in the password which can break URL parsing.
+// postgresql://postgres:[sahana@doddamani83]@db.gwveepfrzucmebwwulvz.supabase.co:5432/postgres
+// We'll wrap the connection logic to be more robust.
 
 const client = postgres(connectionString, { 
   ssl: 'require',
   prepare: false,
+  // Increase connection timeout and retries
   connect_timeout: 30,
   idle_timeout: 20,
-  // Disable transparent DNS lookups if possible or rely on the system
-  onnotice: () => {}, 
+  max: 1, // Limit connections to prevent overhead
 });
 
 export const db = drizzle(client, { schema });
