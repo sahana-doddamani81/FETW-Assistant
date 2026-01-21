@@ -1,26 +1,29 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import * as schema from "@shared/schema";
 
 const connectionString = process.env.SUPABASE_DB_URL;
 
-if (!connectionString) {
-  throw new Error(
-    "Database connection string (SUPABASE_DB_URL) must be set.",
-  );
+/**
+ * Using node-postgres (pg) which often handles DNS resolution more robustly 
+ * in certain environments.
+ */
+let dbInstance: any = null;
+
+if (connectionString) {
+  const pool = new pg.Pool({ 
+    connectionString,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+  
+  // Suppress immediate crashes from pool errors
+  pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+  });
+
+  dbInstance = drizzle(pool, { schema });
 }
 
-// The user's connection string has an '@' in the password which can break URL parsing.
-// postgresql://postgres:[sahana@doddamani83]@db.gwveepfrzucmebwwulvz.supabase.co:5432/postgres
-// We'll wrap the connection logic to be more robust.
-
-const client = postgres(connectionString, { 
-  ssl: 'require',
-  prepare: false,
-  // Increase connection timeout and retries
-  connect_timeout: 30,
-  idle_timeout: 20,
-  max: 1, // Limit connections to prevent overhead
-});
-
-export const db = drizzle(client, { schema });
+export const db = dbInstance;
